@@ -16,8 +16,7 @@ env = environ.Env()
 #Todo: check wallet balance if it has the required tokens to pay for the paymaster fees
 #Todo: accept the full bundle as an input and check the approve operation
 @method
-def eth_paymaster(request, 
-    token = "0x03F1B4380995Fbf41652F75a38c9F74aD8aD73F5") -> Result:
+def eth_paymaster(request, token) -> Result:
     print('\033[96m' + "Paymaster Operation received." + '\033[4m')
 
     token_object = ERC20ApprovedToken.objects.filter(address = token)
@@ -26,14 +25,14 @@ def eth_paymaster(request,
         print("No token")
         return Error(2, "Unsupported token", data="")
 
-    serialzer = OperationSerialzer(data=request)
+    serialzer = OperationSerialzer(data=request, many=True)
     
     if serialzer.is_valid():
         serialzer.save()
     else:
         return Error(400, "BAD REQUEST")
 
-    op = serialzer.data
+    ops = serialzer.data
 
     #TODO : fetch live token price
     maxTokenCost = 5
@@ -43,28 +42,29 @@ def eth_paymaster(request,
     costOfPost = 10**18
     costOfPostHex = str("{0:0{1}x}".format(costOfPost,40))
 
-    abiEncoded = eth_abi.encode_abi(
-        ['address', 'uint256', 
-        'bytes32', 
-        'bytes32',
-        'uint256', 'uint256', 'uint256', 'uint256', 
-        'uint256', 'address',
-        'uint160','uint160','address'],
-        [op['sender'], op['nonce'],
-        w3.solidityKeccak(['bytes'], [op['initCode']]),
-        w3.solidityKeccak(['bytes'], [op['callData']]),
-        op['callGas'],op['verificationGas'],op['preVerificationGas'],op['maxFeePerGas'],
-        op['maxPriorityFeePerGas'], op['paymaster'],
-        maxTokenCost, costOfPost, token])
-    hash = w3.solidityKeccak(['bytes'], ['0x' + abiEncoded.hex()])
-
     bundlerSigner = w3.eth.account.from_key(env('bundler_pk'))
-    sig = bundlerSigner.signHash(hash)
-
-    paymasterData = maxTokenCostHex + costOfPostHex + token[2:] + sig.signature.hex()[2:]
-
-    print('\033[92m' + "Paymaster data : " + paymasterData + '\033[4m')
-    return Success(paymasterData)
+    result = []
+    for operation in ops:
+        op = dict(operation)
+        abiEncoded = eth_abi.encode_abi(
+            ['address', 'uint256',
+            'bytes32',
+            'bytes32',
+            'uint256', 'uint256', 'uint256', 'uint256',
+            'uint256', 'address',
+            'uint160','uint160','address'],
+            [op['sender'], op['nonce'],
+            w3.solidityKeccak(['bytes'], [op['initCode']]),
+            w3.solidityKeccak(['bytes'], [op['callData']]),
+            op['callGas'],op['verificationGas'],op['preVerificationGas'],op['maxFeePerGas'],
+            op['maxPriorityFeePerGas'], op['paymaster'],
+            maxTokenCost, costOfPost, token])
+        hash = w3.solidityKeccak(['bytes'], ['0x' + abiEncoded.hex()])
+        sig = bundlerSigner.signHash(hash)
+        paymasterData = maxTokenCostHex + costOfPostHex + token[2:] + sig.signature.hex()[2:]
+        print('\033[92m' + "Paymaster data : " + paymasterData + '\033[4m')
+        result.append(paymasterData)
+    return Success(result)
 
 @method
 def eth_paymaster_approved_tokens() -> Result:
