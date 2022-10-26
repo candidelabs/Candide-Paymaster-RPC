@@ -57,17 +57,28 @@ def calcPreVerificationGas(request) -> Result:
     return Success(opLength * 5 + 18000)
   
 @method
-def eth_getOperationGasValues(request) -> Result:
-    serialzer = OperationSerialzer(data=request)
-    op = serialzer.data
-    gasFees = getGasFees()
-    op["callGas"] = 215000              #TODO : should be dynamic
-    op["verificationGas"] = 645000      #TODO : should be dynamic
-    op["preVerificationGas"] = calcPreVerificationGas(request)
-    op["maxFeePerGas"] = gasFees["medium"]["suggestedMaxFeePerGas"]
-    op["maxPriorityFeePerGas"] = gasFees["medium"]["maxPriorityFeePerGas"]
+def eth_getOperationsGasValues(request) -> Result:
+    serialzer = OperationSerialzer(data=request, many=True)
 
-    return Success(op)
+    if serialzer.is_valid(raise_exception=True):
+        operations = serialzer.save()
+    else:
+        return Error(400, "BAD REQUEST")
+
+    gasFees = getGasFees()
+
+    operationsDict = serialzer.data
+    resultOperations = []
+    for op in operationsDict:
+        operation = dict(op)
+        operation["callGas"] = 215000  # TODO : should be dynamic
+        operation["verificationGas"] = 645000  # TODO : should be dynamic
+        operation["preVerificationGas"] = calcPreVerificationGas(operation)
+        operation["maxFeePerGas"] = gasFees["medium"]["suggestedMaxFeePerGas"]
+        operation["maxPriorityFeePerGas"] = gasFees["medium"]["suggestedMaxPriorityFeePerGas"]
+        resultOperations.append(op)
+
+    return Success(resultOperations)
 
 #a module manager contract needs to be deployed before deploying the Gnosis safe
 #proxy include in initCode
