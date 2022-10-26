@@ -120,6 +120,17 @@ def eth_sendUserOperation(request) -> Result:
 
     for operation in request:
         moduleManagerSalt = operation['moduleManagerSalt']
+        if isinstance(moduleManagerSalt, str):
+            if moduleManagerSalt.startswith("0x"):
+                if moduleManagerSalt == "0x":
+                    moduleManagerSalt = 0
+                else:
+                    moduleManagerSalt = int(moduleManagerSalt, 16)
+            else:
+                if moduleManagerSalt == "":
+                    moduleManagerSalt = 0
+                else:
+                    moduleManagerSalt = int(moduleManagerSalt)
         if(moduleManagerSalt != 0):
             deployModuleManager(moduleManagerSalt)
     
