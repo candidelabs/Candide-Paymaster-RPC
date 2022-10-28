@@ -51,10 +51,9 @@ def packUserOp(operation):
     return abiEncoded.hex()
 
 #calculate preVerificationGas
-@method
-def calcPreVerificationGas(request) -> Result:
+def calcPreVerificationGas(request):
     opLength = len(packUserOp(request))
-    return Success(opLength * 5 + 18000)
+    return opLength * 5 + 18000
   
 @method
 def eth_getOperationsGasValues(request) -> Result:
@@ -68,17 +67,25 @@ def eth_getOperationsGasValues(request) -> Result:
     gasFees = getGasFees()
 
     operationsDict = serialzer.data
-    resultOperations = []
+    results = []
     for op in operationsDict:
         operation = dict(op)
-        operation["callGas"] = 215000  # TODO : should be dynamic
-        operation["verificationGas"] = 645000  # TODO : should be dynamic
-        operation["preVerificationGas"] = calcPreVerificationGas(operation)
-        operation["maxFeePerGas"] = gasFees["medium"]["suggestedMaxFeePerGas"]
-        operation["maxPriorityFeePerGas"] = gasFees["medium"]["suggestedMaxPriorityFeePerGas"]
-        resultOperations.append(op)
+        callGas = 2150000  # TODO : should be dynamic
+        verificationGas = 645000  # TODO : should be dynamic
+        preVerificationGas = calcPreVerificationGas(operation)
+        maxFeePerGas = w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei')
+        maxPriorityFeePerGas = w3.toWei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei')
+        results.append(
+            {
+                "callGas": callGas,
+                "verificationGas": verificationGas,
+                "preVerificationGas": preVerificationGas,
+                "maxFeePerGas": maxFeePerGas,
+                "maxPriorityFeePerGas": maxPriorityFeePerGas,
+            }
+        )
 
-    return Success(resultOperations)
+    return Success(results)
 
 #a module manager contract needs to be deployed before deploying the Gnosis safe
 #proxy include in initCode
