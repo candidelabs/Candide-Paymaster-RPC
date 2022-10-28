@@ -88,6 +88,9 @@ def deployModuleManager(salt) -> bool:
     f = open("bundler/moduleManagerInitCode", "r")
     moduleManagerInitCode = f.read()
     f.close()
+
+    w3 = Web3(Web3.HTTPProvider(env('HTTPProvider')))
+
     abi = '[{"inputs":[{"internalType":"bytes","name":"_initCode","type":"bytes"},{"internalType":"bytes32","name":"_salt","type":"bytes32"}],"name":"deploy","outputs":[{"internalType":"address payable","name":"createdContract","type":"address"}],"stateMutability":"nonpayable","type":"function"}]'
     singletonFactory = w3.eth.contract(address=env('SingletonFactory_add'), abi=abi)
     transactionTemplate = singletonFactory.functions.deploy(
@@ -95,19 +98,16 @@ def deployModuleManager(salt) -> bool:
         salt
         ) 
 
-    gasEstimation = transactionTemplate.estimate_gas()
-
     gasFees = getGasFees()
 
-    gasLimit = math.ceil(gasEstimation * 1.4)
-        
     transaction = transactionTemplate.build_transaction(
         {
             "chainId": 5,
             "from": env('bundler_pub'),
             "nonce": w3.eth.get_transaction_count(env('bundler_pub')),
-            'gas': gasLimit,
-            'gasPrice': math.ceil(float(gasFees["medium"]["suggestedMaxFeePerGas"])),
+            'gas': 4800000,
+            'maxFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei'),
+            'maxPriorityFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei'),
         }
     )
 
@@ -164,7 +164,8 @@ def eth_sendUserOperation(request) -> Result:
             "from": env('bundler_pub'),
             "nonce": w3.eth.get_transaction_count(env('bundler_pub')),
             'gas': math.ceil(gasEstimation * 1.2),
-            'gasPrice': math.ceil(float(gasFees["medium"]["suggestedMaxFeePerGas"])),
+            'maxFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei'),
+            'maxPriorityFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei'),
         }
     )
 
