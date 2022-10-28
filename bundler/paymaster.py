@@ -34,18 +34,18 @@ def eth_paymaster(request, token) -> Result:
 
     ops = serialzer.data
 
-    #TODO : fetch live token price
-    maxTokenCost = 5
-    maxTokenCostHex = str("{0:0{1}x}".format(maxTokenCost,40))
-    
-    #TODO : compute dynamically
-    costOfPost = 10**18
-    costOfPostHex = str("{0:0{1}x}".format(costOfPost,40))
-
     bundlerSigner = w3.eth.account.from_key(env('bundler_pk'))
     result = []
     for operation in ops:
         op = dict(operation)
+
+        maxTokenCost =  (int(op['maxFeePerGas']) * (int(op['callGas']) + int(op['verificationGas']) * 3 + int(op['preVerificationGas'])))
+        maxTokenCostHex = str("{0:0{1}x}".format(maxTokenCost,40))
+        
+        #TODO : compute dynamically
+        costOfPost = 10**10
+        costOfPostHex = str("{0:0{1}x}".format(costOfPost,40))
+
         abiEncoded = eth_abi.encode_abi(
             ['address', 'uint256',
             'bytes32',
