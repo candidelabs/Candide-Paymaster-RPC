@@ -82,23 +82,24 @@ def eth_getOperationsGasValues(request) -> Result:
 
 #a module manager contract needs to be deployed before deploying the Gnosis safe
 #proxy include in initCode
-def deployModuleManager(salt: int) -> bool:
+def deployModuleManager(salt) -> bool:
+    #todo: add verification for salt to be bytes32
+    
     f = open("bundler/moduleManagerInitCode", "r")
     moduleManagerInitCode = f.read()
     f.close()
-    
     abi = '[{"inputs":[{"internalType":"bytes","name":"_initCode","type":"bytes"},{"internalType":"bytes32","name":"_salt","type":"bytes32"}],"name":"deploy","outputs":[{"internalType":"address payable","name":"createdContract","type":"address"}],"stateMutability":"nonpayable","type":"function"}]'
     singletonFactory = w3.eth.contract(address=env('SingletonFactory_add'), abi=abi)
     transactionTemplate = singletonFactory.functions.deploy(
         moduleManagerInitCode,
-        "0x{:064x}".format(salt)
+        salt
         ) 
 
     gasEstimation = transactionTemplate.estimate_gas()
 
     gasFees = getGasFees()
 
-    gasLimit = math.ceil(gasEstimation * 1.3)
+    gasLimit = math.ceil(gasEstimation * 1.4)
         
     transaction = transactionTemplate.build_transaction(
         {
@@ -133,7 +134,6 @@ def eth_sendUserOperation(request) -> Result:
         moduleManagerSalt = operation['moduleManagerSalt']
         if(moduleManagerSalt != 0):
             deployModuleManager(moduleManagerSalt)
-    
     bundle = Bundle(beneficiary=env('bundler_pub'))
 
     serialzer = OperationSerialzer(data=request, many=True)
