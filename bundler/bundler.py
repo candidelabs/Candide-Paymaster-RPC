@@ -139,7 +139,7 @@ def eth_sendUserOperation(request) -> Result:
 
     for operation in request:
         moduleManagerSalt = operation['moduleManagerSalt']
-        if(moduleManagerSalt != 0):
+        if moduleManagerSalt != "" and moduleManagerSalt != "0x":
             deployModuleManager(moduleManagerSalt)
     bundle = Bundle(beneficiary=env('bundler_pub'))
 
