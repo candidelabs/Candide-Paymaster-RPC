@@ -107,16 +107,24 @@ def deployModuleManager(salt) -> bool:
 
     gasFees = getGasFees()
 
-    transaction = transactionTemplate.build_transaction(
-        {
+    txnDict = {
             "chainId": 5,
             "from": env('bundler_pub'),
             "nonce": w3.eth.get_transaction_count(env('bundler_pub')),
-            'gas': 4800000,
-            'maxFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei'),
-            'maxPriorityFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei'),
-        }
-    )
+            'gas': 4800000
+    }
+    
+    if(env('isGanache') == "True"): #as ganache evm doesn't support maxFeePerGas & maxPriorityFeePerGas
+        txnDict.update({
+            'gasPrice': math.ceil(float(gasFees["medium"]["suggestedMaxFeePerGas"]))
+        })
+    else:
+        txnDict.update({
+            'maxFeePerGas': math.ceil(float(gasFees["medium"]["suggestedMaxFeePerGas"])),
+            'maxPriorityFeePerGas': math.ceil(float(gasFees["medium"]["suggestedMaxPriorityFeePerGas"]))
+        })
+
+    transaction = transactionTemplate.build_transaction(txnDict)
 
     sign_store_txn = w3.eth.account.sign_transaction(
         transaction, private_key=env('bundler_pk')
@@ -165,17 +173,26 @@ def eth_sendUserOperation(request) -> Result:
     gasEstimation = transactionTemplate.estimate_gas()
     gasFees = getGasFees()
 
-    transaction = transactionTemplate.build_transaction(
-        {
+    txnDict = {
             "chainId": 5,
             "from": env('bundler_pub'),
             "nonce": w3.eth.get_transaction_count(env('bundler_pub')),
             'gas': math.ceil(gasEstimation * 1.2),
             'maxFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei'),
             'maxPriorityFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei'),
-        }
-    )
+    }
 
+    if(env('isGanache') == "True"): #as ganache evm doesn't support maxFeePerGas & maxPriorityFeePerGas
+        txnDict.update({
+            'gasPrice': math.ceil(float(gasFees["medium"]["suggestedMaxFeePerGas"]))
+        })
+    else:
+        txnDict.update({
+            'maxFeePerGas': math.ceil(float(gasFees["medium"]["suggestedMaxFeePerGas"])),
+            'maxPriorityFeePerGas': math.ceil(float(gasFees["medium"]["suggestedMaxPriorityFeePerGas"]))
+        })
+       
+    transaction = transactionTemplate.build_transaction(txnDict)
 
     sign_store_txn = w3.eth.account.sign_transaction(
         transaction, private_key=env('bundler_pk')
