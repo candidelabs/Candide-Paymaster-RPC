@@ -68,8 +68,13 @@ def eth_paymaster(request, token) -> Result:
 
 @method
 def eth_paymaster_approved_tokens() -> Result:
-    arrovedTokens = [token['address'] for token in ERC20ApprovedToken.objects.values('address')]
-    return Success([str({"address":arrovedToken, "price":1}) for arrovedToken in arrovedTokens])
+    aprrovedTokens = ERC20ApprovedToken.objects.filter(isActive = True)
+    return Success([
+        str({
+            "address":aprrovedToken.address, 
+            "tokenToEthPrice":aprrovedToken.tokenToEthPrice
+        }) for aprrovedToken in aprrovedTokens]
+    )
 
 @csrf_exempt
 def jsonrpc(request):
