@@ -17,7 +17,7 @@ env = environ.Env()
 #Todo: accept the full bundle as an input and check the approve operation
 @method
 def eth_paymaster(request, token) -> Result:
-    print('\033[96m' + "Paymaster Operation received." + '\033[4m')
+    print('\033[96m' + "Paymaster Operation received."  + '\033[39m')
 
     token_object = ERC20ApprovedToken.objects.filter(address = token)
 

@@ -135,7 +135,7 @@ def deployModuleManager(salt) -> bool:
 
 @method
 def eth_sendUserOperation(request) -> Result:
-    print('\033[96m' + "Bundle Operation received." + '\033[0m')
+    print('\033[96m' + "Bundle Operation received." + '\033[39m')
 
     for operation in request:
         moduleManagerSalt = operation['moduleManagerSalt']
@@ -185,8 +185,8 @@ def eth_sendUserOperation(request) -> Result:
         send_tx = w3.eth.send_raw_transaction(sign_store_txn.rawTransaction)
         tx_receipt = w3.eth.wait_for_transaction_receipt(send_tx)
         tx_hash = tx_receipt['transactionHash'].hex()
-        print('\033[92m' + "Bundle Sent - with state : " + str(tx_receipt['status']) + '\033[0m')
-        print('\033[92m' + "Transaction hash : " + str(tx_hash))
+        print('\033[92m' + "Bundle Sent - with state : " + str(tx_receipt['status']) + '\033[39m')
+        print('\033[92m' + "Transaction hash : " + str(tx_hash) + '\033[39m')
         bundle.status='Successful'
         bundle.save()
 
@@ -197,7 +197,7 @@ def eth_sendUserOperation(request) -> Result:
         return Success("Success : " + str(tx_receipt))
 
     except Exception as inst:
-        print('\033[91m' + "Bundle operation failed : " + str(inst) + '\033[0m')
+        print('\033[91m' + "Bundle operation failed : " + str(inst)  + '\033[39m')
         bundle.status='Failure'
         bundle.save()
        
