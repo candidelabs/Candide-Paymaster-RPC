@@ -67,6 +67,32 @@ def eth_paymaster(request, token) -> Result:
     return Success(result)
 
 @method
+def eth_getApproveAmount(request, token) -> Result:
+    token_object = ERC20ApprovedToken.objects.filter(address = token)
+
+    if(len(token_object) < 1 or not token_object.first().isActive):
+        return Error(2, "Unsupported token", data="")
+
+    token = token_object.first()
+
+    total = 0
+    for op in request:
+        callGas = int(op['callGas'])
+        verificationGas = int(op['verificationGas'])
+        preVerificationGas = int(op['preVerificationGas'])
+        maxFeePerGas = int(op['maxFeePerGas'])
+
+        operationMaxEthCostUsingPaymaster = (callGas + verificationGas * 3 + preVerificationGas) * maxFeePerGas
+
+        tokenToEthPrice = token.tokenToEthPrice #tokenToEthPrice conversionRate
+        maxTokenCost = int(operationMaxEthCostUsingPaymaster * (tokenToEthPrice / 10**18))
+       
+        total = total + maxTokenCost
+
+    #todo: fetch and substract the contract allowance to the paymaster for the final result
+    return Success(total)
+
+@method
 def eth_paymaster_approved_tokens() -> Result:
     aprrovedTokens = ERC20ApprovedToken.objects.filter(isActive = True)
     return Success([
