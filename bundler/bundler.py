@@ -70,8 +70,8 @@ def eth_getOperationsGasValues(request) -> Result:
     results = []
     for op in operationsDict:
         operation = dict(op)
-        callGas = 2150000  # TODO : should be dynamic
-        verificationGas = 645000  # TODO : should be dynamic
+        callGas = 10**5  # TODO : should be dynamic
+        verificationGas = 10**5  # TODO : should be dynamic
         preVerificationGas = calcPreVerificationGas(operation)
         maxFeePerGas = w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei')
         maxPriorityFeePerGas = w3.toWei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei')
@@ -178,8 +178,6 @@ def eth_sendUserOperation(request) -> Result:
             "from": env('bundler_pub'),
             "nonce": w3.eth.get_transaction_count(env('bundler_pub')),
             'gas': math.ceil(gasEstimation * 1.2),
-            'maxFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei'),
-            'maxPriorityFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei'),
     }
 
     if(env('isGanache') == "True"): #as ganache evm doesn't support maxFeePerGas & maxPriorityFeePerGas
