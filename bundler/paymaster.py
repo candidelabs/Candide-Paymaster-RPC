@@ -22,8 +22,9 @@ def eth_paymaster(request, token) -> Result:
     token_object = ERC20ApprovedToken.objects.filter(address = token)
 
     if(len(token_object) < 1 or not token_object.first().isActive):
-        print("No token")
         return Error(2, "Unsupported token", data="")
+
+    token = token_object.first()
 
     serialzer = OperationSerialzer(data=request, many=True)
     
@@ -39,11 +40,19 @@ def eth_paymaster(request, token) -> Result:
     for operation in ops:
         op = dict(operation)
 
-        maxTokenCost =  (int(op['maxFeePerGas']) * (int(op['callGas']) + int(op['verificationGas']) * 3 + int(op['preVerificationGas'])))
+        maxFeePerGas = int(op['maxFeePerGas'])
+        callGas = int(op['callGas'])
+        verificationGas = int(op['verificationGas'])
+        preVerificationGas = int(op['preVerificationGas'])
+
+        operationMaxEthCostUsingPaymaster = (callGas + verificationGas * 3 + preVerificationGas) * maxFeePerGas
+    
+        tokenAddress = token.address
+        tokenToEthPrice = token.tokenToEthPrice #tokenToEthPrice conversionRate
+        maxTokenCost = int(operationMaxEthCostUsingPaymaster * (tokenToEthPrice / 10**18))
         maxTokenCostHex = str("{0:0{1}x}".format(maxTokenCost,40))
         
-        #TODO : compute dynamically
-        costOfPost = 10**10
+        costOfPost = verificationGas * maxFeePerGas
         costOfPostHex = str("{0:0{1}x}".format(costOfPost,40))
 
         abiEncoded = eth_abi.encode_abi(
@@ -58,12 +67,12 @@ def eth_paymaster(request, token) -> Result:
             w3.solidityKeccak(['bytes'], [op['callData']]),
             op['callGas'],op['verificationGas'],op['preVerificationGas'],op['maxFeePerGas'],
             op['maxPriorityFeePerGas'], op['paymaster'],
-            maxTokenCost, costOfPost, token])
+            maxTokenCost, costOfPost, tokenAddress])
         hash = w3.solidityKeccak(['bytes'], ['0x' + abiEncoded.hex()])
         sig = bundlerSigner.signHash(hash)
-        paymasterData = maxTokenCostHex + costOfPostHex + token[2:] + sig.signature.hex()[2:]
-        print('\033[92m' + "Paymaster data : " + paymasterData + '\033[4m')
+        paymasterData = maxTokenCostHex + costOfPostHex + tokenAddress[2:] + sig.signature.hex()[2:]
         result.append(paymasterData)
+
     return Success(result)
 
 @method
