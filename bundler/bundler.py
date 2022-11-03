@@ -120,8 +120,8 @@ def deployModuleManager(salt) -> bool:
         })
     else:
         txnDict.update({
-            'maxFeePerGas': math.ceil(float(gasFees["medium"]["suggestedMaxFeePerGas"])),
-            'maxPriorityFeePerGas': math.ceil(float(gasFees["medium"]["suggestedMaxPriorityFeePerGas"]))
+            'maxFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei'),
+            'maxPriorityFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei'),
         })
 
     transaction = transactionTemplate.build_transaction(txnDict)
@@ -170,14 +170,18 @@ def eth_sendUserOperation(request) -> Result:
     transactionTemplate = entryPoint.functions.handleOps([dict(op) for op in bundleDict], 
         address)
 
-    gasEstimation = transactionTemplate.estimate_gas()
+    try:
+        gasEstimation = transactionTemplate.estimate_gas()
+    except Exception as inst:
+        print('\033[91m' + "Bundle operation failed (Gas estimation reverted): " + str(inst) + '\033[39m')
+        return Error(2, "Bundle operation failed", data=str(inst))
     gasFees = getGasFees()
 
     txnDict = {
             "chainId": 5,
             "from": env('bundler_pub'),
             "nonce": w3.eth.get_transaction_count(env('bundler_pub')),
-            'gas': math.ceil(gasEstimation * 1.2),
+            'gas': math.ceil(gasEstimation * 1.4),
     }
 
     if(env('isGanache') == "True"): #as ganache evm doesn't support maxFeePerGas & maxPriorityFeePerGas
@@ -186,8 +190,8 @@ def eth_sendUserOperation(request) -> Result:
         })
     else:
         txnDict.update({
-            'maxFeePerGas': math.ceil(float(gasFees["medium"]["suggestedMaxFeePerGas"])),
-            'maxPriorityFeePerGas': math.ceil(float(gasFees["medium"]["suggestedMaxPriorityFeePerGas"]))
+            'maxFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei'),
+            'maxPriorityFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei'),
         })
        
     transaction = transactionTemplate.build_transaction(txnDict)

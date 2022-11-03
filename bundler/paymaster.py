@@ -107,7 +107,7 @@ def eth_paymaster_approved_tokens() -> Result:
     return Success([
         str({
             "address":aprrovedToken.address, 
-            "tokenToEthPrice":aprrovedToken.tokenToEthPrice
+            "tokenToEthPrice": str(aprrovedToken.tokenToEthPrice)
         }) for aprrovedToken in aprrovedTokens]
     )
 
