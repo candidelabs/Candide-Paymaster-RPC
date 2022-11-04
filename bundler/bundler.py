@@ -120,8 +120,8 @@ def deployModuleManager(salt) -> bool:
         })
     else:
         txnDict.update({
-            'maxFeePerGas': math.ceil(float(gasFees["medium"]["suggestedMaxFeePerGas"])),
-            'maxPriorityFeePerGas': math.ceil(float(gasFees["medium"]["suggestedMaxPriorityFeePerGas"]))
+            'maxFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei'),
+            'maxPriorityFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei'),
         })
 
     transaction = transactionTemplate.build_transaction(txnDict)
@@ -170,14 +170,18 @@ def eth_sendUserOperation(request) -> Result:
     transactionTemplate = entryPoint.functions.handleOps([dict(op) for op in bundleDict], 
         address)
 
-    gasEstimation = transactionTemplate.estimate_gas()
+    try:
+        gasEstimation = transactionTemplate.estimate_gas()
+    except Exception as inst:
+        print('\033[91m' + "Bundle operation failed (Gas estimation reverted): " + str(inst) + '\033[39m')
+        return Error(2, "Bundle operation failed", data=str(inst))
     gasFees = getGasFees()
 
     txnDict = {
             "chainId": 5,
             "from": env('bundler_pub'),
             "nonce": w3.eth.get_transaction_count(env('bundler_pub')),
-            'gas': math.ceil(gasEstimation * 1.2),
+            'gas': math.ceil(gasEstimation * 1.4),
     }
 
     if(env('isGanache') == "True"): #as ganache evm doesn't support maxFeePerGas & maxPriorityFeePerGas
@@ -186,8 +190,8 @@ def eth_sendUserOperation(request) -> Result:
         })
     else:
         txnDict.update({
-            'maxFeePerGas': math.ceil(float(gasFees["medium"]["suggestedMaxFeePerGas"])),
-            'maxPriorityFeePerGas': math.ceil(float(gasFees["medium"]["suggestedMaxPriorityFeePerGas"]))
+            'maxFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei'),
+            'maxPriorityFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei'),
         })
        
     transaction = transactionTemplate.build_transaction(txnDict)
@@ -223,9 +227,9 @@ def eth_sendUserOperation(request) -> Result:
         return Error(2, "Bundle operation failed", data=str(inst))
 
 @method
-def eth_getRequestId(request) -> Result:
+def eth_getRequestIds(request) -> Result:
 
-    serialzer = OperationSerialzer(data=request)
+    serialzer = OperationSerialzer(data=request, many=True)
     
     if serialzer.is_valid():
         serialzer.save()
@@ -237,11 +241,15 @@ def eth_getRequestId(request) -> Result:
     abi = [{"inputs":[{"components":[{"internalType":"address","name":"sender","type":"address"},{"internalType":"uint256","name":"nonce","type":"uint256"},{"internalType":"bytes","name":"initCode","type":"bytes"},{"internalType":"bytes","name":"callData","type":"bytes"},{"internalType":"uint256","name":"callGas","type":"uint256"},{"internalType":"uint256","name":"verificationGas","type":"uint256"},{"internalType":"uint256","name":"preVerificationGas","type":"uint256"},{"internalType":"uint256","name":"maxFeePerGas","type":"uint256"},{"internalType":"uint256","name":"maxPriorityFeePerGas","type":"uint256"},{"internalType":"address","name":"paymaster","type":"address"},{"internalType":"bytes","name":"paymasterData","type":"bytes"},{"internalType":"bytes","name":"signature","type":"bytes"}],"internalType":"struct UserOperation","name":"userOp","type":"tuple"}],"name":"getRequestId","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes","name":"initCode","type":"bytes"},{"internalType":"uint256","name":"salt","type":"uint256"}],"name":"getSenderAddress","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"}]
     
     entryPoint = w3.eth.contract(address=env('entryPoint_add'), abi=abi)
-    opDict = serialzer.data
-   
-    requestId = entryPoint.functions.getRequestId(opDict).call()
 
-    return Success(requestId.hex())
+    ops = serialzer.data
+    result = []
+    for operation in ops:
+        opDict = dict(operation)
+        requestId = entryPoint.functions.getRequestId(opDict).call()
+        result.append(requestId.hex())
+
+    return Success(result)
 
 
 @method
