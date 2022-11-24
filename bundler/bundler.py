@@ -1,3 +1,5 @@
+from web3.exceptions import TimeExhausted
+
 from .models import  Bundle
 from .serializers import OperationSerialzer
 
@@ -174,7 +176,8 @@ def eth_sendUserOperation(request) -> Result:
         gasEstimation = transactionTemplate.estimate_gas()
     except Exception as inst:
         print('\033[91m' + "Bundle operation failed (Gas estimation reverted): " + str(inst) + '\033[39m')
-        return Error(2, "Bundle operation failed", data=str(inst))
+        return Error(2, "failed-to-submit", data={"status": "failed-to-submit", "txHash": None})
+
     gasFees = getGasFees()
 
     txnDict = {
@@ -184,7 +187,7 @@ def eth_sendUserOperation(request) -> Result:
             'gas': math.ceil(gasEstimation * 1.4),
     }
 
-    if(env('isGanache') == "True"): #as ganache evm doesn't support maxFeePerGas & maxPriorityFeePerGas
+    if env('isGanache') == "True": #as ganache evm doesn't support maxFeePerGas & maxPriorityFeePerGas
         txnDict.update({
             'gasPrice': math.ceil(float(gasFees["medium"]["suggestedMaxFeePerGas"]))
         })
@@ -199,32 +202,41 @@ def eth_sendUserOperation(request) -> Result:
     sign_store_txn = w3.eth.account.sign_transaction(
         transaction, private_key=env('bundler_pk')
     )
-    
+    tx_hash = ""
     try:
         send_tx = w3.eth.send_raw_transaction(sign_store_txn.rawTransaction)
-        tx_receipt = w3.eth.wait_for_transaction_receipt(send_tx)
-        tx_hash = tx_receipt['transactionHash'].hex()
-        print('\033[92m' + "Bundle Sent - with state : " + str(tx_receipt['status']) + '\033[39m')
-        print('\033[92m' + "Transaction hash : " + str(tx_hash) + '\033[39m')
-        bundle.status='Successful'
+        tx_hash = str(send_tx.hex())
+        tx_receipt = w3.eth.wait_for_transaction_receipt(send_tx, timeout=3)
+        print('\033[92m' + "Bundle Sent (" + tx_hash + ") - with state: " + str(tx_receipt['status']) + '\033[39m')
+        bundle.status = 'Successful'
         bundle.save()
 
         for operation in operations:
             operation.bundle = bundle
             operation.save()
        
-        return Success("Success : " + str(tx_receipt))
+        return Success({"status": "success", "txHash": tx_hash})
+    except TimeExhausted as inst:
+        print('\033[92m' + "Bundle operation timeout: " + str(inst) + '\033[39m')
 
+        bundle.status = 'Pending'
+        bundle.save()
+
+        for operation in operations:
+            operation.bundle = bundle
+            operation.save()
+
+        return Success({"status": "pending", "txHash": tx_hash})
     except Exception as inst:
-        print('\033[91m' + "Bundle operation failed : " + str(inst)  + '\033[39m')
-        bundle.status='Failure'
+        print('\033[91m' + "Bundle operation failed: " + str(inst) + '\033[39m')
+        bundle.status = 'Failure'
         bundle.save()
        
         for operation in operations:
             operation.bundle = bundle
             operation.save()
 
-        return Error(2, "Bundle operation failed", data=str(inst))
+        return Error(2, "failed", data={"status": "failed", "txHash": tx_hash})
 
 @method
 def eth_getRequestIds(request) -> Result:
