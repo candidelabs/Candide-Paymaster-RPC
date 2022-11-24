@@ -72,7 +72,7 @@ def eth_getOperationsGasValues(request) -> Result:
     results = []
     for op in operationsDict:
         operation = dict(op)
-        callGas = 10**5  # TODO : should be dynamic
+        callGas = 250000  # TODO : should be dynamic
         verificationGas = 10**5  # TODO : should be dynamic
         preVerificationGas = calcPreVerificationGas(operation)
         maxFeePerGas = w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei')
@@ -169,11 +169,16 @@ def eth_sendUserOperation(request) -> Result:
 
     bundleDict = serialzer.data
 
+    opsGas = 0
+    for op in bundleDict:
+        opsGas += op["callGas"] + op["verificationGas"] + op["preVerificationGas"]
+
     transactionTemplate = entryPoint.functions.handleOps([dict(op) for op in bundleDict], 
         address)
 
     try:
         gasEstimation = transactionTemplate.estimate_gas()
+        gasEstimation = max(opsGas, gasEstimation * 1.4)
     except Exception as inst:
         print('\033[91m' + "Bundle operation failed (Gas estimation reverted): " + str(inst) + '\033[39m')
         return Error(2, "failed-to-submit", data={"status": "failed-to-submit", "txHash": None})
@@ -184,7 +189,7 @@ def eth_sendUserOperation(request) -> Result:
             "chainId": 5,
             "from": env('bundler_pub'),
             "nonce": w3.eth.get_transaction_count(env('bundler_pub')),
-            'gas': math.ceil(gasEstimation * 1.4),
+            'gas': math.ceil(gasEstimation),
     }
 
     if env('isGanache') == "True": #as ganache evm doesn't support maxFeePerGas & maxPriorityFeePerGas
