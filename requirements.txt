@@ -7,3 +7,4 @@ django==4.1.1
 eth_abi==2.2.0
 gnosis==0.1.1
 safe-eth-py==4.5.1
+gunicorn==20.0.4
