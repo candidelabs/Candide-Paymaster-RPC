@@ -61,6 +61,11 @@ python manage.py runserver
 http://127.0.0.1:8000/admin/
 ```
 
+## Using Docker:
+```
+docker compose up -d
+```
+
 ## TODO
 - [ ] Gas limit calculation and verification (bundler)
 - [ ] Fetching live token prices and verifying source wallets balance (paymaster)
