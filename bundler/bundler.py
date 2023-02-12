@@ -110,7 +110,7 @@ def deployModuleManager(salt) -> bool:
     gasFees = getGasFees()
 
     txnDict = {
-            "chainId": 5,
+            "chainId": env('chainId'),
             "from": env('bundler_pub'),
             "nonce": w3.eth.get_transaction_count(env('bundler_pub')),
             'gas': 4800000
@@ -186,7 +186,7 @@ def eth_sendUserOperation(request) -> Result:
     gasFees = getGasFees()
 
     txnDict = {
-            "chainId": 5,
+            "chainId": env('chainId'),
             "from": env('bundler_pub'),
             "nonce": w3.eth.get_transaction_count(env('bundler_pub')),
             'gas': math.ceil(gasEstimation),

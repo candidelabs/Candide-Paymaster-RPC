@@ -51,9 +51,14 @@ the defaults work with the <a href='https://github.com/candidelabs/CandideWallet
 python manage.py createsuperuser
 ```
 
-### Run the server
+### Run the server with default os.environ
 ```
 python manage.py runserver
+```
+
+### Run the server with a custom os.environ
+```
+python3 manage.py runserver --port 1337 --chainId 10 --HTTPProvider http://localhost:8545
 ```
 
 ### Access the control panel
