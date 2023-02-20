@@ -29,8 +29,8 @@
     {
       "model": "bundler.ERC20ApprovedToken",
       "fields": {
-        "name": "TTok",
-        "address": "0x03F1B4380995Fbf41652F75a38c9F74aD8aD73F5",
+        "name": "CTT",
+        "address": "0x7DdEFA2f027691116D0a7aa6418246622d70B12A",
         "isActive": "True",
         "tokenToEthPrice": "1000000000000000000"
       }
