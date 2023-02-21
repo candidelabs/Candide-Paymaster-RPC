@@ -24,6 +24,9 @@ def eth_getGasFees() -> Result:
     return Success(getGasFees())
 
 def getGasFees():
+    if env('chainId') == '420':
+        gasFees = {"medium": {"suggestedMaxFeePerGas": 0.0011, "suggestedMaxPriorityFeePerGas": 0.001}}
+        return gasFees
     api_url = "https://gas-api.metaswap.codefi.network/networks/" + env('chainId') + "/suggestedGasFees"
     gasFees = requests.get(api_url)
     return gasFees.json()
@@ -33,7 +36,7 @@ def packUserOp(operation):
     abiEncoded = eth_abi.encode_abi(
         [
             'address', 'uint256', 'bytes', 'bytes',
-            'uint256', 'uint256', 'uint256', 'uint256', 
+            'uint256', 'uint256', 'uint256', 'uint256',
             'uint256', 'address', 'bytes', 'bytes'
         ],
         [
@@ -56,7 +59,7 @@ def packUserOp(operation):
 def calcPreVerificationGas(request):
     opLength = len(packUserOp(request))
     return opLength * 5 + 18000
-  
+
 @method
 def eth_getOperationsGasValues(request) -> Result:
     serialzer = OperationSerialzer(data=request, many=True)
@@ -89,96 +92,35 @@ def eth_getOperationsGasValues(request) -> Result:
 
     return Success(results)
 
-#a module manager contract needs to be deployed before deploying the Gnosis safe
-#proxy include in initCode
-def deployModuleManager(salt) -> bool:
-    #todo: add verification for salt to be bytes32
-    
-    f = open("bundler/moduleManagerInitCode", "r")
-    moduleManagerInitCode = f.read()
-    f.close()
-
-    w3 = Web3(Web3.HTTPProvider(env('HTTPProvider')))
-
-    abi = '[{"inputs":[{"internalType":"bytes","name":"_initCode","type":"bytes"},{"internalType":"bytes32","name":"_salt","type":"bytes32"}],"name":"deploy","outputs":[{"internalType":"address payable","name":"createdContract","type":"address"}],"stateMutability":"nonpayable","type":"function"}]'
-    singletonFactory = w3.eth.contract(address=env('SingletonFactory_add'), abi=abi)
-    transactionTemplate = singletonFactory.functions.deploy(
-        moduleManagerInitCode,
-        salt
-        ) 
-
-    gasFees = getGasFees()
-
-    txnDict = {
-            "chainId": env('chainId'),
-            "from": env('bundler_pub'),
-            "nonce": w3.eth.get_transaction_count(env('bundler_pub')),
-            'gas': 4800000
-    }
-    
-    if(env('isGanache') == "True"): #as ganache evm doesn't support maxFeePerGas & maxPriorityFeePerGas
-        txnDict.update({
-            'gasPrice': math.ceil(float(gasFees["medium"]["suggestedMaxFeePerGas"]))
-        })
-    else:
-        txnDict.update({
-            'maxFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei'),
-            'maxPriorityFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei'),
-        })
-
-    transaction = transactionTemplate.build_transaction(txnDict)
-
-    sign_store_txn = w3.eth.account.sign_transaction(
-        transaction, private_key=env('bundler_pk')
-    )
-    
-    try:
-        send_tx = w3.eth.send_raw_transaction(sign_store_txn.rawTransaction)
-        tx_receipt = w3.eth.wait_for_transaction_receipt(send_tx)
-        tx_hash = tx_receipt['transactionHash'].hex()
-        print("ModuleManager Deployed - with state : " + str(tx_receipt['status']))
-        print("Transaction hash : " + str(tx_hash))
-        return True
-    except Exception as inst:
-        print("ModuleManager Deployment failed : " + str(inst))
-        return False
-
 @method
 def eth_sendUserOperation(request) -> Result:
     print('\033[96m' + "Bundle Operation received." + '\033[39m')
 
-    for operation in request:
-        moduleManagerSalt = operation['moduleManagerSalt']
-        if moduleManagerSalt != "" and moduleManagerSalt != "0x":
-            deployModuleManager(moduleManagerSalt)
     bundle = Bundle(beneficiary=env('bundler_pub'))
 
-    serialzer = OperationSerialzer(data=request, many=True)
-    
+    serialzer = OperationSerialzer(data=request)
+
     if serialzer.is_valid():
-        operations = serialzer.save()
+        operation = serialzer.save()
     else:
         return Error(400, "BAD REQUEST")
 
     w3 = Web3(Web3.HTTPProvider(env('HTTPProvider')))
-   
-    abi = [{"inputs":[{"components":[{"internalType":"address","name":"sender","type":"address"},{"internalType":"uint256","name":"nonce","type":"uint256"},{"internalType":"bytes","name":"initCode","type":"bytes"},{"internalType":"bytes","name":"callData","type":"bytes"},{"internalType":"uint256","name":"callGas","type":"uint256"},{"internalType":"uint256","name":"verificationGas","type":"uint256"},{"internalType":"uint256","name":"preVerificationGas","type":"uint256"},{"internalType":"uint256","name":"maxFeePerGas","type":"uint256"},{"internalType":"uint256","name":"maxPriorityFeePerGas","type":"uint256"},{"internalType":"address","name":"paymaster","type":"address"},{"internalType":"bytes","name":"paymasterData","type":"bytes"},{"internalType":"bytes","name":"signature","type":"bytes"}],"internalType":"struct UserOperation[]","name":"ops","type":"tuple[]"},{"internalType":"address payable","name":"beneficiary","type":"address"}],"name":"handleOps","outputs":[],"stateMutability":"nonpayable","type":"function"}]
+
+    abi = [{"inputs": [{"components": [{"internalType": "address", "name": "sender", "type": "address"},{"internalType": "uint256", "name": "nonce", "type": "uint256"},{"internalType": "bytes", "name": "initCode", "type": "bytes"},{"internalType": "bytes", "name": "callData", "type": "bytes"},{"internalType": "uint256", "name": "callGasLimit", "type": "uint256"},{"internalType": "uint256", "name": "verificationGasLimit", "type": "uint256"},{"internalType": "uint256", "name": "preVerificationGas", "type": "uint256"},{"internalType": "uint256", "name": "maxFeePerGas", "type": "uint256"},{"internalType": "uint256", "name": "maxPriorityFeePerGas", "type": "uint256"},{"internalType": "bytes", "name": "paymasterAndData", "type": "bytes"},{"internalType": "bytes", "name": "signature", "type": "bytes"}],"internalType": "struct UserOperation[]", "name": "ops", "type": "tuple[]"},{"internalType": "address payable", "name": "beneficiary", "type": "address"}],"name": "handleOps", "outputs": [], "stateMutability": "nonpayable", "type": "function"}]
 
     entryPoint = w3.eth.contract(address=env('entryPoint_add'), abi=abi)
     address = Web3.toChecksumAddress(env('bundler_pub'))
 
-    bundleDict = serialzer.data
+    op = dict(serialzer.data)
 
-    opsGas = 0
-    for op in bundleDict:
-        opsGas += op["callGas"] + op["verificationGas"] + op["preVerificationGas"]
+    opGas = op["callGasLimit"] + op["verificationGasLimit"] + op["preVerificationGas"]
 
-    transactionTemplate = entryPoint.functions.handleOps([dict(op) for op in bundleDict], 
-        address)
+    transactionTemplate = entryPoint.functions.handleOps([op], address)
 
     try:
         gasEstimation = transactionTemplate.estimate_gas()
-        gasEstimation = max(opsGas, gasEstimation * 1.4)
+        gasEstimation = max(opGas, gasEstimation * 1.4)
     except Exception as inst:
         print('\033[91m' + "Bundle operation failed (Gas estimation reverted): " + str(inst) + '\033[39m')
         return Error(2, "failed-to-submit", data={"status": "failed-to-submit", "txHash": None})
@@ -186,10 +128,10 @@ def eth_sendUserOperation(request) -> Result:
     gasFees = getGasFees()
 
     txnDict = {
-            "chainId": env('chainId'),
-            "from": env('bundler_pub'),
-            "nonce": w3.eth.get_transaction_count(env('bundler_pub')),
-            'gas': math.ceil(gasEstimation),
+        "chainId": int(env('chainId')),
+        "from": env('bundler_pub'),
+        "nonce": w3.eth.get_transaction_count(env('bundler_pub')),
+        'gas': math.ceil(gasEstimation),
     }
 
     if env('isGanache') == "True": #as ganache evm doesn't support maxFeePerGas & maxPriorityFeePerGas
@@ -201,7 +143,7 @@ def eth_sendUserOperation(request) -> Result:
             'maxFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei'),
             'maxPriorityFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei'),
         })
-       
+
     transaction = transactionTemplate.build_transaction(txnDict)
 
     sign_store_txn = w3.eth.account.sign_transaction(
@@ -216,10 +158,9 @@ def eth_sendUserOperation(request) -> Result:
         bundle.status = 'Successful'
         bundle.save()
 
-        for operation in operations:
-            operation.bundle = bundle
-            operation.save()
-       
+        operation.bundle = bundle
+        operation.save()
+
         return Success({"status": "success", "txHash": tx_hash})
     except TimeExhausted as inst:
         print('\033[92m' + "Bundle operation timeout: " + str(inst) + '\033[39m')
@@ -227,46 +168,36 @@ def eth_sendUserOperation(request) -> Result:
         bundle.status = 'Pending'
         bundle.save()
 
-        for operation in operations:
-            operation.bundle = bundle
-            operation.save()
+        operation.bundle = bundle
+        operation.save()
 
         return Success({"status": "pending", "txHash": tx_hash})
     except Exception as inst:
         print('\033[91m' + "Bundle operation failed: " + str(inst) + '\033[39m')
         bundle.status = 'Failure'
         bundle.save()
-       
-        for operation in operations:
-            operation.bundle = bundle
-            operation.save()
+
+        operation.bundle = bundle
+        operation.save()
 
         return Error(2, "failed", data={"status": "failed", "txHash": tx_hash})
 
-@method
-def eth_getRequestIds(request) -> Result:
 
-    serialzer = OperationSerialzer(data=request, many=True)
-    
+@method
+def eth_getUserOpHash(request) -> Result:
+    serialzer = OperationSerialzer(data=request)
     if serialzer.is_valid():
         serialzer.save()
     else:
         return Error(400, "BAD REQUEST")
 
     w3 = Web3(Web3.HTTPProvider(env('HTTPProvider')))
-   
-    abi = [{"inputs":[{"components":[{"internalType":"address","name":"sender","type":"address"},{"internalType":"uint256","name":"nonce","type":"uint256"},{"internalType":"bytes","name":"initCode","type":"bytes"},{"internalType":"bytes","name":"callData","type":"bytes"},{"internalType":"uint256","name":"callGas","type":"uint256"},{"internalType":"uint256","name":"verificationGas","type":"uint256"},{"internalType":"uint256","name":"preVerificationGas","type":"uint256"},{"internalType":"uint256","name":"maxFeePerGas","type":"uint256"},{"internalType":"uint256","name":"maxPriorityFeePerGas","type":"uint256"},{"internalType":"address","name":"paymaster","type":"address"},{"internalType":"bytes","name":"paymasterData","type":"bytes"},{"internalType":"bytes","name":"signature","type":"bytes"}],"internalType":"struct UserOperation","name":"userOp","type":"tuple"}],"name":"getRequestId","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes","name":"initCode","type":"bytes"},{"internalType":"uint256","name":"salt","type":"uint256"}],"name":"getSenderAddress","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"}]
-    
+    abi = [{"inputs": [{"components": [{"internalType": "address", "name": "sender", "type": "address"},{"internalType": "uint256", "name": "nonce", "type": "uint256"},{"internalType": "bytes", "name": "initCode", "type": "bytes"},{"internalType": "bytes", "name": "callData", "type": "bytes"},{"internalType": "uint256", "name": "callGasLimit", "type": "uint256"},{"internalType": "uint256", "name": "verificationGasLimit", "type": "uint256"},{"internalType": "uint256", "name": "preVerificationGas", "type": "uint256"},{"internalType": "uint256", "name": "maxFeePerGas", "type": "uint256"},{"internalType": "uint256", "name": "maxPriorityFeePerGas", "type": "uint256"},{"internalType": "bytes", "name": "paymasterAndData", "type": "bytes"},{"internalType": "bytes", "name": "signature", "type": "bytes"}],"internalType": "struct UserOperation", "name": "userOp", "type": "tuple"}],"name": "getUserOpHash", "outputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}],"stateMutability": "view", "type": "function"}]
     entryPoint = w3.eth.contract(address=env('entryPoint_add'), abi=abi)
 
-    ops = serialzer.data
-    result = []
-    for operation in ops:
-        opDict = dict(operation)
-        requestId = entryPoint.functions.getRequestId(opDict).call()
-        result.append(requestId.hex())
-
-    return Success(result)
+    op = dict(serialzer.data)
+    requestId = entryPoint.functions.getUserOpHash(op).call()
+    return Success(requestId.hex())
 
 
 @method

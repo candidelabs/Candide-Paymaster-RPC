@@ -22,7 +22,7 @@ def main():
     
     if 'runserver' in remaining_argv:
         if args.port:
-            remaining_argv += ['0.0.0.0:{}'.format(args.port)]
+            remaining_argv += ['{}'.format(args.port)]
 
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "bundler.settings")
     try:
