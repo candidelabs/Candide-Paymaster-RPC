@@ -45,14 +45,13 @@ class OperationSerialzer(serializers.Serializer):
     sender = EthereumAddressField()
     nonce = serializers.IntegerField()
     initCode = HexadecimalField2(allow_blank=True)
-    callData = HexadecimalField2()
-    callGas = serializers.IntegerField()
-    verificationGas = serializers.IntegerField()
+    callData = HexadecimalField2(allow_blank=True)
+    callGasLimit = serializers.IntegerField()
+    verificationGasLimit = serializers.IntegerField()
     preVerificationGas = serializers.IntegerField()
     maxFeePerGas = serializers.IntegerField()
     maxPriorityFeePerGas = serializers.IntegerField()
-    paymaster = EthereumAddressField(allow_zero_address=True)
-    paymasterData = HexadecimalField2(allow_blank=True)
+    paymasterAndData = HexadecimalField2(allow_blank=True)
     signature = HexadecimalField2(max_length=65, min_length=65,allow_blank=True)
 
     def create(self, validated_data):
