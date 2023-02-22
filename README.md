@@ -1,11 +1,15 @@
 <!-- PROJECT LOGO -->
 
 <div align="center">
-  <h1 align="center">Candide Wallet Bundler and Paymaster RPC</h1>
+  <h1 align="center">For 4337 Bundler, check -> <a href='https://github.com/candidelabs/voltaire'>Voltaire - EIP-4337 Python Bundler</a></h1>
 </div>
 
 <div align="center">
-<img src="https://pbs.twimg.com/profile_banners/1528783691299930114/1653898682/1500x500" height =200/>
+  <h3 align="center">Candide Wallet - Simple 4337 Relayer and Paymaster RPC</h3>
+</div>
+
+<div align="center">
+<img src="https://user-images.githubusercontent.com/7014833/203773780-04a0c8c0-93a6-43a4-bb75-570cb951dfa0.png" height =200>
 </div>
 
 # About
