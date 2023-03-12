@@ -1,3 +1,5 @@
+from functools import reduce
+
 from web3.exceptions import TimeExhausted
 
 from .models import  Bundle
@@ -10,8 +12,7 @@ from django.http import HttpResponse
 from web3 import Web3
 import environ
 
-from web3.auto import w3
-import eth_abi
+from eth_abi import encode
 
 import math
 import requests
@@ -31,66 +32,94 @@ def getGasFees():
     gasFees = requests.get(api_url)
     return gasFees.json()
 
-#only to calculate preVerificationGas
-def packUserOp(operation):
-    abiEncoded = eth_abi.encode_abi(
+def calc_preverification_gas(user_operation) -> int:
+    userOp = user_operation
+
+    fixed = 21000
+    per_user_operation = 18300
+    per_user_operation_word = 4
+    zero_byte = 4
+    non_zero_byte = 16
+    bundle_size = 1
+    sigSize = 65
+
+    # userOp.preVerificationGas = fixed
+    # userOp.signature = bytes(sigSize)
+    packed = pack_user_operation(userOp)
+
+    cost_list = list(map(lambda x: zero_byte if x == 0 else non_zero_byte, packed))
+    call_data_cost = reduce(lambda x, y: x + y, cost_list)
+
+    lengthInWord = (len(packed) + 31) / 32
+    pre_verification_gas = (
+        call_data_cost
+        + (fixed / bundle_size)
+        + per_user_operation
+        + per_user_operation_word * lengthInWord
+    )
+
+    return math.ceil(pre_verification_gas)
+
+
+def pack_user_operation(user_operation):
+    return encode(
         [
-            'address', 'uint256', 'bytes', 'bytes',
-            'uint256', 'uint256', 'uint256', 'uint256',
-            'uint256', 'address', 'bytes', 'bytes'
+            "address",
+            "uint256",
+            "bytes",
+            "bytes",
+            "uint256",
+            "uint256",
+            "uint256",
+            "uint256",
+            "uint256",
+            "bytes",
+            "bytes",
         ],
         [
-            operation["sender"],
-            operation["nonce"],
-            bytes(operation["initCode"], 'ascii'),
-            bytes(operation["callData"], 'ascii'),
-            operation["callGas"],
-            operation["verificationGas"],
-            operation["preVerificationGas"],
-            operation["maxFeePerGas"],
-            operation["maxPriorityFeePerGas"],
-            operation["paymaster"],
-            bytes(operation["paymasterData"], 'ascii'),
-            bytes(operation["signature"], 'ascii')
-        ])
-    return abiEncoded.hex()
-
-#calculate preVerificationGas
-def calcPreVerificationGas(request):
-    opLength = len(packUserOp(request))
-    return opLength * 5 + 18000
+            user_operation["sender"],
+            user_operation["nonce"],
+            bytes(user_operation["initCode"], 'ascii'),
+            bytes(user_operation["callData"], 'ascii'),
+            user_operation["callGasLimit"],
+            user_operation["verificationGasLimit"],
+            user_operation["preVerificationGas"],
+            user_operation["maxFeePerGas"],
+            user_operation["maxPriorityFeePerGas"],
+            bytes(user_operation["paymasterAndData"], 'ascii'),
+            bytes(user_operation["signature"], 'ascii')
+        ],
+    )[66:-64]
 
 @method
-def eth_getOperationsGasValues(request) -> Result:
-    serialzer = OperationSerialzer(data=request, many=True)
+def eth_estimateUserOperationGas(request) -> Result:
+    serializer = OperationSerialzer(data=request)
 
-    if serialzer.is_valid(raise_exception=True):
-        operations = serialzer.save()
+    if serializer.is_valid():
+        operation = serializer.save()
     else:
         return Error(400, "BAD REQUEST")
 
-    gasFees = getGasFees()
+    w3 = Web3(Web3.HTTPProvider(env('HTTPProvider')))
 
-    operationsDict = serialzer.data
-    results = []
-    for op in operationsDict:
-        operation = dict(op)
-        callGas = 250000  # TODO : should be dynamic
-        verificationGas = 10**5  # TODO : should be dynamic
-        preVerificationGas = calcPreVerificationGas(operation)
-        maxFeePerGas = w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei')
-        maxPriorityFeePerGas = w3.toWei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei')
-        results.append(
-            {
-                "callGas": callGas,
-                "verificationGas": verificationGas,
-                "preVerificationGas": preVerificationGas,
-                "maxFeePerGas": maxFeePerGas,
-                "maxPriorityFeePerGas": maxPriorityFeePerGas,
-            }
-        )
+    op = dict(serializer.data)
+    rawTx = {
+        "from": env('entryPoint_add'),
+        "to": op["sender"],
+        "data": op["callData"],
+    }
 
-    return Success(results)
+    callGasLimit = w3.eth.estimate_gas(rawTx)
+    verificationGasLimit = 75000
+    op["callGasLimit"] = callGasLimit
+    op["verificationGasLimit"] = verificationGasLimit
+    preVerificationGas = calc_preverification_gas(op)
+
+    return Success({
+        "callGasLimit": callGasLimit,
+        "verificationGasLimit": verificationGasLimit,
+        "preVerificationGas": preVerificationGas,
+    })
 
 @method
 def eth_sendUserOperation(request) -> Result:
