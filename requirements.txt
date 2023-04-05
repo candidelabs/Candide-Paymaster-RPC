@@ -2,9 +2,6 @@ djangorestframework==3.14.0
 django-environ==0.9.0
 jsonrpcserver==5.0.9
 hexbytes==0.2.3
-web3==5.31.0
+web3==6.0.0
 django==4.1.1
-eth_abi==2.2.0
-gnosis==0.1.1
-safe-eth-py==4.5.1
 gunicorn==20.0.4
