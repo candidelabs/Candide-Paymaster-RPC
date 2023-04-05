@@ -6,10 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse
 
 import environ
-
-from web3.auto import w3
-import eth_abi
-
+from web3 import Web3
 from hexbytes import HexBytes
 
 env = environ.Env()
@@ -19,92 +16,61 @@ env = environ.Env()
 # Todo: accept the full bundle as an input and check the approve operation
 @method
 def eth_paymaster(request, token) -> Result:
+    w3 = Web3(Web3.HTTPProvider(env('HTTPProvider')))
     print('\033[96m' + "Paymaster Operation received." + '\033[39m')
 
-    token_object = ERC20ApprovedToken.objects.filter(address=token)
-
-    if len(token_object) < 1 or not token_object.first().isActive:
+    token_object = ERC20ApprovedToken.objects.filter(address=token).filter(chains__has_key=env('chainId'))
+    if len(token_object) < 1:
         return Error(2, "Unsupported token", data="")
 
     token = token_object.first()
 
     serialzer = OperationSerialzer(data=request)
 
-    if serialzer.is_valid():
-        serialzer.save()
-    else:
+    if not serialzer.is_valid():
         return Error(400, "BAD REQUEST")
 
     op = dict(serialzer.data)
+    op["maxFeePerGas"] = int(op["maxFeePerGas"], 16)
+    op["maxPriorityFeePerGas"] = int(op["maxPriorityFeePerGas"], 16)
+    op["callGasLimit"] = int(op["callGasLimit"], 16)
+    op["verificationGasLimit"] = int(op["verificationGasLimit"], 16)
+    op["preVerificationGas"] = int(op["preVerificationGas"], 16)
+    op["nonce"] = int(op["nonce"], 16)
 
+    abi = [{"inputs":[{"components":[{"internalType":"address","name":"sender","type":"address"},{"internalType":"uint256","name":"nonce","type":"uint256"},{"internalType":"bytes","name":"initCode","type":"bytes"},{"internalType":"bytes","name":"callData","type":"bytes"},{"internalType":"uint256","name":"callGasLimit","type":"uint256"},{"internalType":"uint256","name":"verificationGasLimit","type":"uint256"},{"internalType":"uint256","name":"preVerificationGas","type":"uint256"},{"internalType":"uint256","name":"maxFeePerGas","type":"uint256"},{"internalType":"uint256","name":"maxPriorityFeePerGas","type":"uint256"},{"internalType":"bytes","name":"paymasterAndData","type":"bytes"},{"internalType":"bytes","name":"signature","type":"bytes"}],"internalType":"struct UserOperation","name":"userOp","type":"tuple"},{"components":[{"internalType":"contract IERC20Metadata","name":"token","type":"address"},{"internalType":"enum CandidePaymaster.SponsoringMode","name":"mode","type":"uint8"},{"internalType":"uint48","name":"validUntil","type":"uint48"},{"internalType":"uint256","name":"fee","type":"uint256"},{"internalType":"bytes","name":"signature","type":"bytes"}],"internalType":"struct CandidePaymaster.PaymasterData","name":"paymasterData","type":"tuple"}],"name":"getHash","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"}]
+    paymaster = w3.eth.contract(address=env('paymaster_add'), abi=abi)
+
+    paymasterData = [
+        token.address,
+        1,  # SponsoringMode (GAS ONLY)
+        w3.eth.get_block("latest").timestamp + 300,  # validUntil 5 minutes in the future
+        0,  # Fee (in case mode == 0)
+        b'',
+    ]
+
+    hash = paymaster.functions.getHash(op, paymasterData).call()
     bundlerSigner = w3.eth.account.from_key(env('bundler_pk'))
-    maxFeePerGas = int(op['maxFeePerGas'])
-    callGasLimit = int(op['callGasLimit'])
-    verificationGasLimit = int(op['verificationGasLimit'])
-    preVerificationGas = int(op['preVerificationGas'])
-
-    operationMaxEthCostUsingPaymaster = (callGasLimit + verificationGasLimit * 3 + preVerificationGas) * maxFeePerGas
-
-    tokenAddress = token.address
-    tokenToEthPrice = token.tokenToEthPrice  # tokenToEthPrice conversionRate
-    maxTokenCost = int(operationMaxEthCostUsingPaymaster * (tokenToEthPrice / 10 ** 18))
-    maxTokenCostHex = str("{0:0{1}x}".format(maxTokenCost, 40))
-
-    costOfPost = verificationGasLimit * maxFeePerGas
-    costOfPostHex = str("{0:0{1}x}".format(costOfPost, 40))
-
-    abiEncoded = eth_abi.encode_abi(
-        ['address', 'uint256',
-         'bytes32',
-         'bytes32',
-         'uint256', 'uint256', 'uint256', 'uint256',
-         'uint256', 'uint160', 'uint160', 'address'],
-        [op['sender'], op['nonce'],
-         w3.solidityKeccak(['bytes'], [op['initCode']]),
-         w3.solidityKeccak(['bytes'], [op['callData']]),
-         op['callGasLimit'], op['verificationGasLimit'], op['preVerificationGas'], op['maxFeePerGas'],
-         op['maxPriorityFeePerGas'], maxTokenCost, costOfPost, tokenAddress])
-    hash = w3.solidityKeccak(['bytes'], ['0x' + abiEncoded.hex()])
     sig = bundlerSigner.signHash(hash)
-    paymasterData = maxTokenCostHex + costOfPostHex + tokenAddress[2:] + sig.signature.hex()[2:]
+    paymasterData[-1] = HexBytes(sig.signature.hex())
 
-    return Success(paymasterData)
+    paymasterAndData = (
+          str(paymasterData[0][2:])
+        + str("{0:0{1}x}".format(paymasterData[1], 2))
+        + str("{0:0{1}x}".format(paymasterData[2], 12))
+        + str("{0:0{1}x}".format(paymasterData[3], 64))
+        + sig.signature.hex()[2:]
+    )
 
-
-@method
-def eth_getApproveAmount(request, token) -> Result:
-    token_object = ERC20ApprovedToken.objects.filter(address=token)
-
-    if len(token_object) < 1 or not token_object.first().isActive:
-        return Error(2, "Unsupported token", data="")
-
-    token = token_object.first()
-
-    total = 0
-    for op in request:
-        callGas = int(op['callGas'])
-        verificationGas = int(op['verificationGas'])
-        preVerificationGas = int(op['preVerificationGas'])
-        maxFeePerGas = int(op['maxFeePerGas'])
-
-        operationMaxEthCostUsingPaymaster = (callGas + verificationGas * 3 + preVerificationGas) * maxFeePerGas
-
-        tokenToEthPrice = token.tokenToEthPrice  # tokenToEthPrice conversionRate
-        maxTokenCost = int(operationMaxEthCostUsingPaymaster * (tokenToEthPrice / 10 ** 18))
-
-        total = total + maxTokenCost
-
-    #todo: fetch and substract the contract allowance to the paymaster for the final result
-    return Success(total)
+    return Success(paymasterAndData)
 
 @method
 def eth_paymaster_approved_tokens() -> Result:
-    aprrovedTokens = ERC20ApprovedToken.objects.filter(isActive=True)
+    aprrovedTokens = ERC20ApprovedToken.objects.filter(chains__has_key=env('chainId'))
     return Success([
         str({
             "address": aprrovedToken.address,
             "paymaster": env('paymaster_add'),
-            "tokenToEthPrice": str(aprrovedToken.tokenToEthPrice)
         }) for aprrovedToken in aprrovedTokens]
     )
 

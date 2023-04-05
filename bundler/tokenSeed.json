@@ -4,26 +4,7 @@
       "fields": {
         "name": "ETH",
         "address": "0x0000000000000000000000000000000000000000",
-        "isActive": "True",
-        "tokenToEthPrice": "1000000000000000000"
-      }
-    },
-    {
-      "model": "bundler.ERC20ApprovedToken",
-      "fields": {
-        "name": "UNI",
-        "address": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
-        "isActive": "False",
-        "tokenToEthPrice": "1000000000000000000"
-      }
-    },
-    {
-      "model": "bundler.ERC20ApprovedToken",
-      "fields": {
-        "name": "WETH",
-        "address": "0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6",
-        "isActive": "False",
-        "tokenToEthPrice": "1000000000000000000"
+        "chains": {"5": true, "10": true, "420": true}
       }
     },
     {
@@ -31,8 +12,7 @@
       "fields": {
         "name": "CTT",
         "address": "0x7DdEFA2f027691116D0a7aa6418246622d70B12A",
-        "isActive": "True",
-        "tokenToEthPrice": "1000000000000000000"
+        "chains": {"5": true, "420": true}
       }
     }
   ]

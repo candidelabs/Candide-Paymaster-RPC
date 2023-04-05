@@ -2,7 +2,6 @@ from functools import reduce
 
 from web3.exceptions import TimeExhausted
 
-from .models import  Bundle
 from .serializers import OperationSerialzer
 
 from jsonrpcserver import method, Result, Success, dispatch, Error
@@ -16,21 +15,25 @@ from eth_abi import encode
 
 import math
 import requests
-
-from hexbytes import HexBytes
 env = environ.Env()
+
 
 @method
 def eth_getGasFees() -> Result:
     return Success(getGasFees())
 
+
 def getGasFees():
     if env('chainId') == '420':
         gasFees = {"medium": {"suggestedMaxFeePerGas": 0.0011, "suggestedMaxPriorityFeePerGas": 0.001}}
         return gasFees
+    if env('chainId') == '11155111':
+        gasFees = {"medium": {"suggestedMaxFeePerGas": 1.51, "suggestedMaxPriorityFeePerGas": 1.5}}
+        return gasFees
     api_url = "https://gas-api.metaswap.codefi.network/networks/" + env('chainId') + "/suggestedGasFees"
     gasFees = requests.get(api_url)
     return gasFees.json()
+
 
 def calc_preverification_gas(user_operation) -> int:
     userOp = user_operation
@@ -78,26 +81,25 @@ def pack_user_operation(user_operation):
         ],
         [
             user_operation["sender"],
-            user_operation["nonce"],
+            int(str(user_operation["nonce"]), 16),
             bytes(user_operation["initCode"], 'ascii'),
             bytes(user_operation["callData"], 'ascii'),
-            user_operation["callGasLimit"],
-            user_operation["verificationGasLimit"],
-            user_operation["preVerificationGas"],
-            user_operation["maxFeePerGas"],
-            user_operation["maxPriorityFeePerGas"],
+            int(str(user_operation["callGasLimit"]), 16),
+            int(str(user_operation["verificationGasLimit"]), 16),
+            int(str(user_operation["preVerificationGas"]), 16),
+            int(str(user_operation["maxFeePerGas"]), 16),
+            int(str(user_operation["maxPriorityFeePerGas"]), 16),
             bytes(user_operation["paymasterAndData"], 'ascii'),
             bytes(user_operation["signature"], 'ascii')
         ],
     )[66:-64]
 
+
 @method
 def eth_estimateUserOperationGas(request) -> Result:
     serializer = OperationSerialzer(data=request)
 
-    if serializer.is_valid():
-        operation = serializer.save()
-    else:
+    if not serializer.is_valid():
         return Error(400, "BAD REQUEST")
 
     w3 = Web3(Web3.HTTPProvider(env('HTTPProvider')))
@@ -109,29 +111,30 @@ def eth_estimateUserOperationGas(request) -> Result:
         "data": op["callData"],
     }
 
-    callGasLimit = w3.eth.estimate_gas(rawTx)
-    verificationGasLimit = 75000
+    try:
+        callGasLimit = w3.eth.estimate_gas(rawTx)
+    except Exception as inst:
+        return Error(2, "execution-reverted", data={"reason": "execution-reverted"})
+
+    verificationGasLimit = 95000
     op["callGasLimit"] = callGasLimit
     op["verificationGasLimit"] = verificationGasLimit
     preVerificationGas = calc_preverification_gas(op)
 
     return Success({
-        "callGasLimit": callGasLimit,
-        "verificationGasLimit": verificationGasLimit,
-        "preVerificationGas": preVerificationGas,
+        "callGasLimit": hex(callGasLimit),
+        "verificationGasLimit": hex(verificationGasLimit),
+        "preVerificationGas": hex(preVerificationGas),
     })
+
 
 @method
 def eth_sendUserOperation(request) -> Result:
     print('\033[96m' + "Bundle Operation received." + '\033[39m')
 
-    bundle = Bundle(beneficiary=env('bundler_pub'))
-
     serialzer = OperationSerialzer(data=request)
 
-    if serialzer.is_valid():
-        operation = serialzer.save()
-    else:
+    if not serialzer.is_valid():
         return Error(400, "BAD REQUEST")
 
     w3 = Web3(Web3.HTTPProvider(env('HTTPProvider')))
@@ -139,11 +142,16 @@ def eth_sendUserOperation(request) -> Result:
     abi = [{"inputs": [{"components": [{"internalType": "address", "name": "sender", "type": "address"},{"internalType": "uint256", "name": "nonce", "type": "uint256"},{"internalType": "bytes", "name": "initCode", "type": "bytes"},{"internalType": "bytes", "name": "callData", "type": "bytes"},{"internalType": "uint256", "name": "callGasLimit", "type": "uint256"},{"internalType": "uint256", "name": "verificationGasLimit", "type": "uint256"},{"internalType": "uint256", "name": "preVerificationGas", "type": "uint256"},{"internalType": "uint256", "name": "maxFeePerGas", "type": "uint256"},{"internalType": "uint256", "name": "maxPriorityFeePerGas", "type": "uint256"},{"internalType": "bytes", "name": "paymasterAndData", "type": "bytes"},{"internalType": "bytes", "name": "signature", "type": "bytes"}],"internalType": "struct UserOperation[]", "name": "ops", "type": "tuple[]"},{"internalType": "address payable", "name": "beneficiary", "type": "address"}],"name": "handleOps", "outputs": [], "stateMutability": "nonpayable", "type": "function"}]
 
     entryPoint = w3.eth.contract(address=env('entryPoint_add'), abi=abi)
-    address = Web3.toChecksumAddress(env('bundler_pub'))
+    address = w3.to_checksum_address(env('bundler_pub'))
 
     op = dict(serialzer.data)
-
-    opGas = op["callGasLimit"] + op["verificationGasLimit"] + op["preVerificationGas"]
+    op["maxFeePerGas"] = int(op["maxFeePerGas"], 16)
+    op["maxPriorityFeePerGas"] = int(op["maxPriorityFeePerGas"], 16)
+    op["callGasLimit"] = int(op["callGasLimit"], 16)
+    op["verificationGasLimit"] = int(op["verificationGasLimit"], 16)
+    op["preVerificationGas"] = int(op["preVerificationGas"], 16)
+    op["nonce"] = int(op["nonce"], 16)
+    opGas = op["callGasLimit"] + op["verificationGasLimit"]
 
     transactionTemplate = entryPoint.functions.handleOps([op], address)
 
@@ -152,7 +160,8 @@ def eth_sendUserOperation(request) -> Result:
         gasEstimation = max(opGas, gasEstimation * 1.4)
     except Exception as inst:
         print('\033[91m' + "Bundle operation failed (Gas estimation reverted): " + str(inst) + '\033[39m')
-        return Error(2, "failed-to-submit", data={"status": "failed-to-submit", "txHash": None})
+        gasEstimation = 5000000
+        # return Error(2, "failed-to-submit", data={"status": "failed-to-submit", "txHash": None})
 
     gasFees = getGasFees()
 
@@ -169,8 +178,8 @@ def eth_sendUserOperation(request) -> Result:
         })
     else:
         txnDict.update({
-            'maxFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei'),
-            'maxPriorityFeePerGas': w3.toWei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei'),
+            'maxFeePerGas': w3.to_wei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei'),
+            'maxPriorityFeePerGas': w3.to_wei(gasFees["medium"]["suggestedMaxPriorityFeePerGas"], 'gwei'),
         })
 
     transaction = transactionTemplate.build_transaction(txnDict)
@@ -184,62 +193,24 @@ def eth_sendUserOperation(request) -> Result:
         tx_hash = str(send_tx.hex())
         tx_receipt = w3.eth.wait_for_transaction_receipt(send_tx, timeout=3)
         print('\033[92m' + "Bundle Sent (" + tx_hash + ") - with state: " + str(tx_receipt['status']) + '\033[39m')
-        bundle.status = 'Successful'
-        bundle.save()
-
-        operation.bundle = bundle
-        operation.save()
-
         return Success({"status": "success", "txHash": tx_hash})
     except TimeExhausted as inst:
         print('\033[92m' + "Bundle operation timeout: " + str(inst) + '\033[39m')
-
-        bundle.status = 'Pending'
-        bundle.save()
-
-        operation.bundle = bundle
-        operation.save()
-
         return Success({"status": "pending", "txHash": tx_hash})
     except Exception as inst:
         print('\033[91m' + "Bundle operation failed: " + str(inst) + '\033[39m')
-        bundle.status = 'Failure'
-        bundle.save()
-
-        operation.bundle = bundle
-        operation.save()
-
         return Error(2, "failed", data={"status": "failed", "txHash": tx_hash})
-
-
-@method
-def eth_getUserOpHash(request) -> Result:
-    serialzer = OperationSerialzer(data=request)
-    if serialzer.is_valid():
-        serialzer.save()
-    else:
-        return Error(400, "BAD REQUEST")
-
-    w3 = Web3(Web3.HTTPProvider(env('HTTPProvider')))
-    abi = [{"inputs": [{"components": [{"internalType": "address", "name": "sender", "type": "address"},{"internalType": "uint256", "name": "nonce", "type": "uint256"},{"internalType": "bytes", "name": "initCode", "type": "bytes"},{"internalType": "bytes", "name": "callData", "type": "bytes"},{"internalType": "uint256", "name": "callGasLimit", "type": "uint256"},{"internalType": "uint256", "name": "verificationGasLimit", "type": "uint256"},{"internalType": "uint256", "name": "preVerificationGas", "type": "uint256"},{"internalType": "uint256", "name": "maxFeePerGas", "type": "uint256"},{"internalType": "uint256", "name": "maxPriorityFeePerGas", "type": "uint256"},{"internalType": "bytes", "name": "paymasterAndData", "type": "bytes"},{"internalType": "bytes", "name": "signature", "type": "bytes"}],"internalType": "struct UserOperation", "name": "userOp", "type": "tuple"}],"name": "getUserOpHash", "outputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}],"stateMutability": "view", "type": "function"}]
-    entryPoint = w3.eth.contract(address=env('entryPoint_add'), abi=abi)
-
-    op = dict(serialzer.data)
-    requestId = entryPoint.functions.getUserOpHash(op).call()
-    return Success(requestId.hex())
 
 
 @method
 def eth_supportedEntryPoints() -> Result:
     return Success(env('entryPoint_add'))
 
+
 @method
 def eth_chainId() -> Result:
     return Success(env('chainId'))
 
-@method
-def eth_gasFee() -> Result:
-    return Success(env('chainId'))
 
 @csrf_exempt
 def jsonrpc(request):
