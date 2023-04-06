@@ -24,8 +24,8 @@ def eth_getGasFees() -> Result:
 
 
 def getGasFees():
-    if env('chainId') == '420':
-        gasFees = {"medium": {"suggestedMaxFeePerGas": 0.0011, "suggestedMaxPriorityFeePerGas": 0.001}}
+    if env('chainId') == '420' or env('chainId') == '10':
+        gasFees = {"medium": {"suggestedMaxFeePerGas": 0.001, "suggestedMaxPriorityFeePerGas": 0.001}}
         return gasFees
     if env('chainId') == '11155111':
         gasFees = {"medium": {"suggestedMaxFeePerGas": 1.51, "suggestedMaxPriorityFeePerGas": 1.5}}
