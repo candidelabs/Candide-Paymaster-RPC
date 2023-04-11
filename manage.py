@@ -10,7 +10,7 @@ def main():
     parser = argparse.ArgumentParser(description='Overwrite values in os.environ with optional command-line arguments')
     parser.add_argument('--port', help='port number', type=int)
     parser.add_argument('--chainId', help='The Ethereum Network chain ID', type=int)
-    parser.add_argument('--paymaster', help='The paymaster address', type=int)
+    parser.add_argument('--paymaster', help='The paymaster address', type=str)
     parser.add_argument('--HTTPProvider', help='The Ethereum Network URL HTTP provider', type=str)
     args, remaining_argv = parser.parse_known_args()
 
