@@ -24,7 +24,7 @@ from bundler import explorer
 urlpatterns = [
     path("admin/", admin.site.urls),
 
-    path("jsonrpc/bundler", bundler.jsonrpc),
-    path("jsonrpc/paymaster", paymaster.jsonrpc),
-    path("jsonrpc/explorer", explorer.jsonrpc),
+    # path("rpc", bundler.jsonrpc),
+    path("paymaster", paymaster.jsonrpc),
+    # path("jsonrpc/explorer", explorer.jsonrpc),
 ]+ static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

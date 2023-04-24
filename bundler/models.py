@@ -146,5 +146,4 @@ class Bundle(models.Model):
 
 class ERC20ApprovedToken(models.Model):
     name = models.CharField(max_length=200, default="ERC20", unique=True)
-    address = EthereumAddressField(default=NULL_ADDRESS, unique=True)
     chains = models.JSONField()
