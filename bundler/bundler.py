@@ -96,7 +96,7 @@ def pack_user_operation(user_operation):
 
 
 @method
-def eth_estimateUserOperationGas(request) -> Result:
+def eth_estimateUserOperationGas(request, entrypoint) -> Result:
     serializer = OperationSerialzer(data=request)
 
     if not serializer.is_valid():
@@ -129,7 +129,7 @@ def eth_estimateUserOperationGas(request) -> Result:
 
 
 @method
-def eth_sendUserOperation(request) -> Result:
+def eth_sendUserOperation(request, entrypoint) -> Result:
     print('\033[96m' + "Bundle Operation received." + '\033[39m')
 
     serialzer = OperationSerialzer(data=request)
@@ -160,8 +160,7 @@ def eth_sendUserOperation(request) -> Result:
         gasEstimation = max(opGas, gasEstimation * 1.4)
     except Exception as inst:
         print('\033[91m' + "Bundle operation failed (Gas estimation reverted): " + str(inst) + '\033[39m')
-        gasEstimation = 5000000
-        # return Error(2, "failed-to-submit", data={"status": "failed-to-submit", "txHash": None})
+        return Error(2, "failed-to-submit", data={"status": "failed-to-submit", "txHash": None})
 
     gasFees = getGasFees()
 
@@ -172,9 +171,9 @@ def eth_sendUserOperation(request) -> Result:
         'gas': math.ceil(gasEstimation),
     }
 
-    if env('isGanache') == "True": #as ganache evm doesn't support maxFeePerGas & maxPriorityFeePerGas
+    if env('isGanache') == "True" or env('chainId') == '10': #as ganache evm doesn't support maxFeePerGas & maxPriorityFeePerGas
         txnDict.update({
-            'gasPrice': math.ceil(float(gasFees["medium"]["suggestedMaxFeePerGas"]))
+            'gasPrice': w3.to_wei(gasFees["medium"]["suggestedMaxFeePerGas"], 'gwei')
         })
     else:
         txnDict.update({
