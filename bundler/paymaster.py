@@ -10,6 +10,7 @@ from django.http import HttpResponse
 import environ
 import requests
 from web3 import Web3
+from web3.middleware import geth_poa_middleware
 from hexbytes import HexBytes
 import re
 from eth_account.messages import defunct_hash_message
@@ -22,8 +23,10 @@ env = environ.Env()
 @method
 def pm_sponsorUserOperation(request, token_address) -> Result:
     w3 = Web3(Web3.HTTPProvider(env('HTTPProvider')))
-    print('\033[96m' + "Paymaster Operation received." + '\033[39m')
     chainId = str(env('chainId'))
+    if chainId == "10":
+        w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+    print('\033[96m' + "Paymaster Operation received." + '\033[39m')
     token_object = ERC20ApprovedToken.objects.filter(chains__has_key=chainId).filter(chains__icontains=token_address)
     if len(token_object) < 1:
         return Error(2, "Unsupported token", data="")
