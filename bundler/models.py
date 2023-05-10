@@ -136,12 +136,6 @@ class Operation(models.Model):
     paymasterAndData = HexField(max_length=200000, null=True, blank=True)
     signature = HexField(max_length=65, null=True, blank=True)
     status = models.CharField(max_length=200, null=True, blank=True)
-    bundle = models.ForeignKey("Bundle", on_delete=models.CASCADE, null=True, blank=True)
-
-
-class Bundle(models.Model):
-    beneficiary = EthereumAddressField(default=NULL_ADDRESS)
-    status = models.CharField(max_length=200)
 
 
 class ERC20ApprovedToken(models.Model):

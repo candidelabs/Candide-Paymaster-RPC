@@ -1,4 +1,4 @@
-from .models import Operation, Bundle
+from .models import Operation
 from typing import Tuple
 from django.contrib import admin
 from django.core.exceptions import ValidationError
@@ -44,4 +44,3 @@ class OperationsAdmin(BinarySearchAdmin):
 
 
 admin.site.register(Operation, OperationsAdmin)
-admin.site.register(Bundle)

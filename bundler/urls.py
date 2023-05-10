@@ -17,14 +17,10 @@ from django.contrib import admin
 from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
-from bundler import bundler
 from bundler import paymaster
-from bundler import explorer
 
 urlpatterns = [
     path("admin/", admin.site.urls),
 
-    # path("rpc", bundler.jsonrpc),
     path("paymaster", paymaster.jsonrpc),
-    # path("jsonrpc/explorer", explorer.jsonrpc),
 ]+ static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
