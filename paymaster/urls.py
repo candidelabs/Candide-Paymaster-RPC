@@ -1,4 +1,4 @@
-"""bundler URL Configuration
+"""paymaster URL Configuration
 
 The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/4.1/topics/http/urls/
@@ -17,7 +17,7 @@ from django.contrib import admin
 from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
-from bundler import paymaster
+from paymaster import paymaster
 
 urlpatterns = [
     path("admin/", admin.site.urls),

@@ -1,7 +1,7 @@
 <!-- PROJECT LOGO -->
 
 <div align="center">
-  <h1 align="center">Check out <a href='https://github.com/candidelabs/voltaire'>Voltaire</a> for Account Abstraction Bundler- ERC-4337</h1>
+  <h1 align="center">Check out <a href='https://github.com/candidelabs/voltaire'>Voltaire</a> for Account Abstraction paymaster- ERC-4337</h1>
 </div>
 <br/><br/>
 <div align="center">
@@ -15,10 +15,9 @@
 # About
 
 Candide Wallet is a smart contract wallet for Ethereum Mainnet and EVM compatible rollups.<br/>
-This repo includes the bundler and the paymaster RPC service.
+This repo includes the paymaster RPC service.
 
 # Features
-- a bundler RPC receives and bundles entrypoint operations and send it to the entrypoint contract 
 - a paymaster RPC that approves and signs operation to allow for gas sponsoship and paying gas with ERC-20 tokens.
 - admin control panel to view processed operations
 
@@ -41,9 +40,9 @@ pip install -r requirements.txt
 
 ### Setup the database
 ```
-python manage.py makemigrations bundler
+python manage.py makemigrations paymaster
 python manage.py migrate
-python manage.py loaddata bundler/tokenSeed.json
+python manage.py loaddata paymaster/tokenSeed.json
 ```
 
 ### Change .env variables if needed 
@@ -76,7 +75,7 @@ docker compose up -d
 ```
 
 ## TODO
-- [ ] Gas limit calculation and verification (bundler)
+- [ ] Gas limit calculation and verification (paymaster)
 - [ ] Fetching live token prices and verifying source wallets balance (paymaster)
 - [ ] Adding white list and black list for source wallets (paymaster)
 

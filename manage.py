@@ -30,7 +30,7 @@ def main():
         if args.port:
             remaining_argv += ['{}'.format(args.port)]
 
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "bundler.settings")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "paymaster.settings")
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

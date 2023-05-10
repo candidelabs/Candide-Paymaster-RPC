@@ -64,8 +64,8 @@ def pm_sponsorUserOperation(request, token_address) -> Result:
 
     hash = paymaster.functions.getHash(op, paymasterData).call()
     hash = defunct_hash_message(hash)
-    bundlerSigner = w3.eth.account.from_key(env('bundler_pk'))
-    sig = bundlerSigner.signHash(hash)
+    paymasterSigner = w3.eth.account.from_key(env('paymaster_pk'))
+    sig = paymasterSigner.signHash(hash)
     paymasterData[-1] = HexBytes(sig.signature.hex())
 
     paymasterAndData = (

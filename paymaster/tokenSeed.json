@@ -1,6 +1,6 @@
 [
 	{
-      "model": "bundler.ERC20ApprovedToken",
+      "model": "paymaster.ERC20ApprovedToken",
       "fields": {
         "name": "USDC",
         "chains": {
@@ -14,7 +14,7 @@
       }
     },
     {
-      "model": "bundler.ERC20ApprovedToken",
+      "model": "paymaster.ERC20ApprovedToken",
       "fields": {
         "name": "CTT",
         "chains": {
